@@ -12,7 +12,7 @@
             <v-card-title>
               <div>
                 <span class="grey--text"> {{image.name}} </span>
-                <v-chip> {{ image.scorePromedio }} </v-chip>
+                <v-chip :color="selectClass(image.scorePromedio)"> {{ image.scorePromedio | trimScore }} </v-chip>
                 <br>
                 <span>{{ image.labels | separateLabels }}</span>
               </div>
@@ -59,10 +59,11 @@
 <script>
 import { firestore } from '@/main'
 //import { storage } from '@/main'
-
+import axios from 'axios'
 export default {
   data () {
     return {
+      apiKey: '',
       id: this.$route.params.id,
       image: '',
       comentario: '',
@@ -71,13 +72,45 @@ export default {
   },
   methods: {
     enviarComentario: function () {
-      let comentario = {
-        imageId: this.id,
-        texto: this.comentario,
-        createdAt: (+new Date()),
-        score: 0
+      const data = {
+        "document": {
+          "type": "PLAIN_TEXT",
+          "language": "ES",
+          "content": this.comentario
+        },
+        "encodingType": "UTF8"
       }
-      firestore.collection('comentarios').add(comentario)
+      axios.post(`https://language.googleapis.com/v1/documents:analyzeSentiment?key=${this.apiKey}`, data)
+      .then(response => {
+        const score = response.data.documentSentiment.score
+        let comentario = {
+          imageId: this.id,
+          texto: this.comentario,
+          createdAt: (+new Date()),
+          score: score
+        }
+        firestore.collection('comentarios').add(comentario)
+        .then(() => {
+          const length = this.comentarios.length
+          let scorePromedio = 0
+          this.comentarios.forEach(function(comentario){
+            scorePromedio = scorePromedio + comentario.score
+          })
+          scorePromedio = scorePromedio / length
+          firestore.collection("images").doc(this.id).set({
+            scorePromedio: scorePromedio
+          }, {merge: true})
+          this.comentario =  ''
+        })
+      })
+    },
+    selectClass: function(score) {
+      if (score < -0.25)
+        return 'red'
+      else if (score >= -0.25 && score < 0.25)
+        return 'warning'
+      else
+      return  'success'
     }
   },
   firestore () {
@@ -88,8 +121,13 @@ export default {
   },
   filters: {
     separateLabels: function (value) {
-      return `${value[0]}, ${value[1]}, ${value[2]}`
-    }
+      if (value)
+        return `${value[0]}, ${value[1]}, ${value[2]}`
+    },
+    trimScore: function (value) {
+      if(value)
+        return Number(value.toString().slice(0, 5))
+    } 
   }
 }
 

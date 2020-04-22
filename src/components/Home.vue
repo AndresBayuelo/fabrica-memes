@@ -18,7 +18,7 @@
             <v-card-title>
               <div>
                 <span class="grey--text"> {{image.name}} </span>
-                <v-chip> {{ image.scorePromedio }} </v-chip>
+                <v-chip :color="selectClass(image.scorePromedio)"> {{ image.scorePromedio | trimScore }} </v-chip>
                 <br>
                 <span>{{ image.labels | separateLabels }}</span>
               </div>
@@ -91,6 +91,14 @@
       goToImageDetail: function(id){
         this.$router.push({ path: `/image/${id}` })
       },
+      selectClass: function(score) {
+        if (score < -0.25)
+          return 'red'
+        else if (score >= -0.25 && score < 0.25)
+          return 'warning'
+        else
+        return  'success'
+      }
     },
     firestore() {
       return {
@@ -100,7 +108,11 @@
     filters: {
       separateLabels: function (value) {
         return `${value[0]}, ${value[1]}, ${value[2]}`
-      }
+      },
+      trimScore: function (value) {
+        if(value)
+          return Number(value.toString().slice(0, 5))
+      } 
     }
   }  
 </script>
